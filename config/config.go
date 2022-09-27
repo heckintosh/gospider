@@ -8,7 +8,7 @@ import (
 
 type SpiderCfg struct {
 	Site               string   `yaml:"site"`
-	Sites              string   `yaml:"site-list"`
+	Sites              string   `yaml:"sites"`
 	Proxy              string   `yaml:"proxy"`
 	Output             string   `yaml:"output"`
 	UserAgent          string   `yaml:"user-agent"`

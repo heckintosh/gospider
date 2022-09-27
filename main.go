@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gospider/config"
 	"gospider/core"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,8 +16,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func main() {
+	runSpider()
+}
+
 func runSpider() {
-	yaml_file, err := filepath.Abs("spider.yaml")
+	yaml_file, err := filepath.Abs("config/spider.yml")
 	if err != nil {
 		logrus.Error(err)
 		return
@@ -27,11 +32,38 @@ func runSpider() {
 		logrus.Error(err)
 	}
 
+	isDebug := cfg.Debug
+	if isDebug {
+		core.Logger.SetLevel(logrus.DebugLevel)
+	} else {
+		core.Logger.SetLevel(logrus.InfoLevel)
+	}
+
+	verbose := cfg.Verbose
+	if !verbose && !isDebug {
+		core.Logger.SetOutput(ioutil.Discard)
+	}
+	outputFolder := cfg.Output
+	if outputFolder != "" {
+		if _, err := os.Stat(outputFolder); os.IsNotExist(err) {
+			_ = os.Mkdir(outputFolder, os.ModePerm)
+		}
+	}
+
 	// Parse sites input
 	var siteList []string
 	siteInput := cfg.Site
 	if siteInput != "" {
 		siteList = append(siteList, siteInput)
+	}
+
+	sitesListInput := cfg.Sites
+	if sitesListInput != "" {
+		// parse from stdin
+		sitesFile := core.ReadingLines(sitesListInput)
+		if len(sitesFile) > 0 {
+			siteList = append(siteList, sitesFile...)
+		}
 	}
 
 	stat, _ := os.Stdin.Stat()

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/sirupsen/logrus"
 
@@ -569,6 +570,7 @@ func (crawler *Crawler) setupLinkFinder() {
 		}
 
 		respStr := string(response.Body)
+		spew.Dump(respStr)
 
 		if len(crawler.filterLength_slice) == 0 || !contains(crawler.filterLength_slice, len(respStr)) {
 
