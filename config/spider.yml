@@ -1,4 +1,4 @@
-site: "https://fis.com.vn"
+site: "https://www.fis.com.vn/"
 sites: ""
 proxy: ""
 output: ""
@@ -12,12 +12,12 @@ whitelist-domain: ""
 filter-length: ""
 threads: 1
 concurrent: 5
-depth: 1
+depth: 4
 delay: 0
 random-delay: 0
 timeout: 10
 base: false
-quiet: false
+quiet: true
 version: false
 raw: false
 no-redirect: false
@@ -27,6 +27,8 @@ debug: false
 verbose: false
 other-source: false
 length: false
-include-other-source: true
-sitemap: false
+include-subs: false
+subs: false
+include-other-source: false
+sitemap: true
 json: false
