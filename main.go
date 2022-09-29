@@ -1,26 +1,22 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
 	"gospider/config"
 	"gospider/core"
-	"io/ioutil"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	runSpider()
+	logObject := logrus.New()
+	runSpider(logObject)
 }
 
-func runSpider() {
+func runSpider(logObject *logrus.Logger) {
 	yaml_file, err := filepath.Abs("config/spider.yml")
 	if err != nil {
 		logrus.Error(err)
@@ -29,27 +25,9 @@ func runSpider() {
 
 	cfg, err := config.LoadSpiderCfg(yaml_file)
 	if err != nil {
-		logrus.Error(err)
+		logObject.Error(err)
+		return
 	}
-
-	isDebug := cfg.Debug
-	if isDebug {
-		core.Logger.SetLevel(logrus.DebugLevel)
-	} else {
-		core.Logger.SetLevel(logrus.InfoLevel)
-	}
-
-	verbose := cfg.Verbose
-	if !verbose && !isDebug {
-		core.Logger.SetOutput(ioutil.Discard)
-	}
-	outputFolder := cfg.Output
-	if outputFolder != "" {
-		if _, err := os.Stat(outputFolder); os.IsNotExist(err) {
-			_ = os.Mkdir(outputFolder, os.ModePerm)
-		}
-	}
-
 	// Parse sites input
 	var siteList []string
 	siteInput := cfg.Site
@@ -57,30 +35,10 @@ func runSpider() {
 		siteList = append(siteList, siteInput)
 	}
 
-	sitesListInput := cfg.Sites
-	if sitesListInput != "" {
-		// parse from stdin
-		sitesFile := core.ReadingLines(sitesListInput)
-		if len(sitesFile) > 0 {
-			siteList = append(siteList, sitesFile...)
-		}
-	}
-
-	stat, _ := os.Stdin.Stat()
-	// detect if anything came from std
-	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		sc := bufio.NewScanner(os.Stdin)
-		for sc.Scan() {
-			target := strings.TrimSpace(sc.Text())
-			if err := sc.Err(); err == nil && target != "" {
-				siteList = append(siteList, target)
-			}
-		}
-	}
-
 	// Check again to make sure at least one site in slice
 	if len(siteList) == 0 {
-		logrus.Fatal("No site in list. Please check your site input again")
+		logrus.Error("No site in list. Please check your site input again")
+		return
 	}
 
 	threads := cfg.Threads
@@ -89,8 +47,6 @@ func runSpider() {
 	robots := cfg.Robots
 	otherSource := cfg.OtherSource
 	includeSubs := cfg.IncludeSubs
-	includeOtherSourceResult := cfg.IncludeOtherSource
-
 	base := cfg.Base
 
 	// disable all options above
@@ -99,7 +55,6 @@ func runSpider() {
 		robots = false
 		otherSource = false
 		includeSubs = false
-		includeOtherSourceResult = false
 	}
 
 	var wg sync.WaitGroup
@@ -111,29 +66,29 @@ func runSpider() {
 			for rawSite := range inputChan {
 				site, err := url.Parse(rawSite)
 				if err != nil {
-					logrus.Errorf("Failed to parse %s: %s", rawSite, err)
+					logObject.Errorf("Failed to parse %s: %s", rawSite, err)
 					continue
 				}
 
 				var siteWg sync.WaitGroup
 
-				crawler := core.NewCrawler(site, cfg)
+				crawler := core.NewCrawler(site, cfg, logObject)
 				siteWg.Add(1)
 				go func() {
 					defer siteWg.Done()
-					crawler.Start(linkfinder)
+					crawler.Start(linkfinder, logObject)
 				}()
 
 				// Brute force Sitemap path
 				if sitemap {
 					siteWg.Add(1)
-					go core.ParseSiteMap(site, crawler, crawler.C, &siteWg)
+					go core.ParseSiteMap(site, crawler, crawler.C, &siteWg, logObject)
 				}
 
 				// Find Robots.txt
 				if robots {
 					siteWg.Add(1)
-					go core.ParseRobots(site, crawler, crawler.C, &siteWg)
+					go core.ParseRobots(site, crawler, crawler.C, &siteWg, logObject)
 				}
 
 				if otherSource {
@@ -145,28 +100,6 @@ func runSpider() {
 							url = strings.TrimSpace(url)
 							if len(url) == 0 {
 								continue
-							}
-
-							outputFormat := fmt.Sprintf("[other-sources] - %s", url)
-							if includeOtherSourceResult {
-								if crawler.JsonOutput {
-									sout := core.SpiderOutput{
-										Input:      crawler.Input,
-										Source:     "other-sources",
-										OutputType: "url",
-										Output:     url,
-									}
-									if data, err := jsoniter.MarshalToString(sout); err == nil {
-										outputFormat = data
-									}
-								} else if crawler.Quiet {
-									outputFormat = url
-								}
-								fmt.Println(outputFormat)
-
-								if crawler.Output != nil {
-									crawler.Output.WriteToFile(outputFormat)
-								}
 							}
 
 							_ = crawler.C.Visit(url)
@@ -185,5 +118,4 @@ func runSpider() {
 	}
 	close(inputChan)
 	wg.Wait()
-	logrus.Info("Spidering has been finished.")
 }
