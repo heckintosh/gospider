@@ -3,12 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"gospider/config"
-	"gospider/core"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/heckintosh/gospider/config"
+	"github.com/heckintosh/gospider/core"
 )
 
 func main() {

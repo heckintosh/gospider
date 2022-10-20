@@ -3,13 +3,14 @@ package core
 import (
 	"crypto/tls"
 	"fmt"
-	"gospider/config"
 	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/heckintosh/gospider/config"
 
 	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/extensions"

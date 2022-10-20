@@ -1,4 +1,4 @@
-module gospider
+module github.com/heckintosh/gospider
 
 go 1.16
 
