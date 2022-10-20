@@ -292,8 +292,7 @@ func (crawler *Crawler) Start(linkfinder bool) {
 		respStr := DecodeChars(string(response.Body))
 
 		// Verify which link is working
-		u := response.Request.URL.String()
-		fmt.Println(u)
+		_ = response.Request.URL.String()
 		if InScope(response.Request.URL, crawler.C.URLFilters) {
 			crawler.findAWSS3(respStr)
 		}
