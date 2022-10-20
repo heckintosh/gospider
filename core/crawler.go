@@ -7,12 +7,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/extensions"
@@ -62,13 +59,11 @@ type SpiderOutput struct {
 	StatusCode int    `json:"status"`
 }
 
-func NewCrawler(site *url.URL, cfg *config.SpiderCfg, logObject *logrus.Logger) *Crawler {
+func NewCrawler(site *url.URL, cfg *config.SpiderCfg) *Crawler {
 	domain := GetDomain(site)
 	if domain == "" {
-		logObject.Error("Failed to parse domain")
-		os.Exit(1)
+		return nil
 	}
-	logObject.Infof("Start crawling: %s", site)
 
 	maxDepth := cfg.Depth
 	concurrent := cfg.Concurrent
@@ -88,10 +83,9 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg, logObject *logrus.Logger) 
 	// Set proxy
 	proxy := cfg.Proxy
 	if proxy != "" {
-		logObject.Infof("Proxy: %s", proxy)
 		pU, err := url.Parse(proxy)
 		if err != nil {
-			logObject.Error("Failed to set proxy")
+			return nil
 		} else {
 			DefaultHTTPTransport.Proxy = http.ProxyURL(pU)
 		}
@@ -100,7 +94,7 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg, logObject *logrus.Logger) 
 	// Set request timeout
 	timeout := cfg.Timeout
 	if timeout == 0 {
-		logObject.Info("Your input timeout is 0. Gospider will set it to 10 seconds")
+		fmt.Println("Your input timeout is 0. Gospider will set it to 10 seconds")
 		client.Timeout = 10 * time.Second
 	} else {
 		client.Timeout = time.Duration(timeout) * time.Second
@@ -111,13 +105,13 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg, logObject *logrus.Logger) 
 	if noRedirect {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			nextLocation := req.Response.Header.Get("Location")
-			logObject.Debugf("Found Redirect: %s", nextLocation)
+			fmt.Printf("Found Redirect: %s", nextLocation)
 
 			// Allow in redirect from http to https or in same hostname
 			// We just check contain hostname or not because we set URLFilter in main collector so if
 			// the URL is https://otherdomain.com/?url=maindomain.com, it will reject it
 			if strings.Contains(nextLocation, site.Hostname()) {
-				logObject.Infof("Redirecting to: %s", nextLocation)
+				fmt.Printf("Redirecting to: %s", nextLocation)
 				return nil
 			}
 			return http.ErrUseLastResponse
@@ -182,8 +176,7 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg, logObject *logrus.Logger) 
 		Delay:       time.Duration(delay) * time.Second,
 	})
 	if err != nil {
-		logObject.Errorf("Failed to set Limit Rule: %s", err)
-		os.Exit(1)
+		return nil
 	}
 
 	// GoSpider default disallowed regex
@@ -253,10 +246,10 @@ func (crawler *Crawler) feedLinkfinder(jsFileUrl string, OutputType string, sour
 	}
 }
 
-func (crawler *Crawler) Start(linkfinder bool, logObject *logrus.Logger) {
+func (crawler *Crawler) Start(linkfinder bool) {
 	// Setup Link Finder
 	if linkfinder {
-		crawler.setupLinkFinder(logObject)
+		crawler.setupLinkFinder()
 	}
 
 	// Handle url
@@ -307,7 +300,7 @@ func (crawler *Crawler) Start(linkfinder bool, logObject *logrus.Logger) {
 
 	err := crawler.C.Visit(crawler.site.String())
 	if err != nil {
-		logObject.Errorf("Failed to start %s: %s", crawler.site.String(), err)
+		fmt.Printf("Failed to start %s: %s", crawler.site.String(), err)
 	}
 }
 
@@ -325,7 +318,7 @@ func (crawler *Crawler) findAWSS3(resp string) {
 }
 
 // Setup link finder
-func (crawler *Crawler) setupLinkFinder(logObject *logrus.Logger) {
+func (crawler *Crawler) setupLinkFinder() {
 	crawler.LinkFinderCollector.OnResponse(func(response *colly.Response) {
 		if response.StatusCode == 404 || response.StatusCode == 429 || response.StatusCode < 100 {
 			return
@@ -342,7 +335,7 @@ func (crawler *Crawler) setupLinkFinder(logObject *logrus.Logger) {
 
 			paths, err := LinkFinder(respStr)
 			if err != nil {
-				logObject.Error(err)
+				fmt.Println(err)
 				return
 			}
 

@@ -3,7 +3,6 @@ module gospider
 go 1.16
 
 require (
-	github.com/davecgh/go-spew v1.1.1
 	github.com/gocolly/colly/v2 v2.1.0
 	github.com/jaeles-project/gospider v1.1.6
 	github.com/json-iterator/go v1.1.11

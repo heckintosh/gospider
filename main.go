@@ -1,32 +1,29 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"gospider/config"
 	"gospider/core"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	logObject := logrus.New()
-	runSpider(logObject)
+	runSpider()
 }
 
-func runSpider(logObject *logrus.Logger) {
+func runSpider() error {
 	yaml_file, err := filepath.Abs("config/spider.yml")
 	if err != nil {
-		logrus.Error(err)
-		return
+		return err
 	}
 
 	cfg, err := config.LoadSpiderCfg(yaml_file)
 	if err != nil {
-		logObject.Error(err)
-		return
+		return err
 	}
 	// Parse sites input
 	var siteList []string
@@ -37,8 +34,7 @@ func runSpider(logObject *logrus.Logger) {
 
 	// Check again to make sure at least one site in slice
 	if len(siteList) == 0 {
-		logrus.Error("No site in list. Please check your site input again")
-		return
+		return errors.New("no site in list, check your site input again")
 	}
 
 	threads := cfg.Threads
@@ -66,29 +62,29 @@ func runSpider(logObject *logrus.Logger) {
 			for rawSite := range inputChan {
 				site, err := url.Parse(rawSite)
 				if err != nil {
-					logObject.Errorf("Failed to parse %s: %s", rawSite, err)
+					fmt.Printf("Failed to parse %s: %s", rawSite, err)
 					continue
 				}
 
 				var siteWg sync.WaitGroup
 
-				crawler := core.NewCrawler(site, cfg, logObject)
+				crawler := core.NewCrawler(site, cfg)
 				siteWg.Add(1)
 				go func() {
 					defer siteWg.Done()
-					crawler.Start(linkfinder, logObject)
+					crawler.Start(linkfinder)
 				}()
 
 				// Brute force Sitemap path
 				if sitemap {
 					siteWg.Add(1)
-					go core.ParseSiteMap(site, crawler, crawler.C, &siteWg, logObject)
+					go core.ParseSiteMap(site, crawler, crawler.C, &siteWg)
 				}
 
 				// Find Robots.txt
 				if robots {
 					siteWg.Add(1)
-					go core.ParseRobots(site, crawler, crawler.C, &siteWg, logObject)
+					go core.ParseRobots(site, crawler, crawler.C, &siteWg)
 				}
 
 				if otherSource {
@@ -118,4 +114,5 @@ func runSpider(logObject *logrus.Logger) {
 	}
 	close(inputChan)
 	wg.Wait()
+	return nil
 }

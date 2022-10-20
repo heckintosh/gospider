@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -9,10 +10,9 @@ import (
 	"sync"
 
 	"github.com/gocolly/colly/v2"
-	"github.com/sirupsen/logrus"
 )
 
-func ParseRobots(site *url.URL, crawler *Crawler, c *colly.Collector, wg *sync.WaitGroup, logObject *logrus.Logger) {
+func ParseRobots(site *url.URL, crawler *Crawler, c *colly.Collector, wg *sync.WaitGroup) {
 	defer wg.Done()
 	robotsURL := site.String() + "/robots.txt"
 
@@ -21,7 +21,7 @@ func ParseRobots(site *url.URL, crawler *Crawler, c *colly.Collector, wg *sync.W
 		return
 	}
 	if resp.StatusCode == 200 {
-		logObject.Infof("Found robots.txt: %s", robotsURL)
+		fmt.Printf("Found robots.txt: %s", robotsURL)
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return
