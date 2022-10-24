@@ -288,9 +288,9 @@ func (crawler *Crawler) Start(linkfinder bool) {
 	})
 	crawler.C.OnResponse(func(response *colly.Response) {
 		respStr := DecodeChars(string(response.Body))
-
+		u := response.Request.URL.String()
+		crawler.Result = append(crawler.Result, u)
 		// Verify which link is working
-		_ = response.Request.URL.String()
 		if InScope(response.Request.URL, crawler.C.URLFilters) {
 			crawler.findAWSS3(respStr)
 		}

@@ -10,9 +10,9 @@ blacklist: ""
 whitelist: ""
 whitelist-domain: ""
 filter-length: ""
-threads: 1
+threads: 3
 concurrent: 5
-depth: 4
+depth: 3
 delay: 0
 random-delay: 0
 timeout: 10

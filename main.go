@@ -1,6 +1,7 @@
 package main
 
 import (
+	// "github.com/heckintosh/gospider/config"
 	"errors"
 	"fmt"
 	"net/url"
@@ -13,29 +14,34 @@ import (
 )
 
 func main() {
-	runSpider()
+	res, err := RunSpider("config/spider.yml", "https://heckintosh.github.io/")
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(res)
+	}
 }
 
-func runSpider() error {
-	yaml_file, err := filepath.Abs("config/spider.yml")
+func RunSpider(filename string, hosturl string) ([]string, error) {
+	var result []string
+	yaml_file, err := filepath.Abs(filename)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	cfg, err := config.LoadSpiderCfg(yaml_file)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Parse sites input
 	var siteList []string
-	siteInput := cfg.Site
+	siteInput := hosturl
 	if siteInput != "" {
 		siteList = append(siteList, siteInput)
 	}
 
 	// Check again to make sure at least one site in slice
 	if len(siteList) == 0 {
-		return errors.New("no site in list, check your site input again")
+		return nil, errors.New("no site in list, please check your site input again")
 	}
 
 	threads := cfg.Threads
@@ -63,7 +69,6 @@ func runSpider() error {
 			for rawSite := range inputChan {
 				site, err := url.Parse(rawSite)
 				if err != nil {
-					fmt.Printf("Failed to parse %s: %s", rawSite, err)
 					continue
 				}
 
@@ -106,6 +111,7 @@ func runSpider() error {
 				siteWg.Wait()
 				crawler.C.Wait()
 				crawler.LinkFinderCollector.Wait()
+				result = append(result, crawler.Result...)
 			}
 		}()
 	}
@@ -115,5 +121,5 @@ func runSpider() error {
 	}
 	close(inputChan)
 	wg.Wait()
-	return nil
+	return result, err
 }
