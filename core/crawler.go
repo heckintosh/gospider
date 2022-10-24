@@ -106,13 +106,11 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg) *Crawler {
 	if noRedirect {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			nextLocation := req.Response.Header.Get("Location")
-			fmt.Printf("Found Redirect: %s", nextLocation)
 
 			// Allow in redirect from http to https or in same hostname
 			// We just check contain hostname or not because we set URLFilter in main collector so if
 			// the URL is https://otherdomain.com/?url=maindomain.com, it will reject it
 			if strings.Contains(nextLocation, site.Hostname()) {
-				fmt.Printf("Redirecting to: %s", nextLocation)
 				return nil
 			}
 			return http.ErrUseLastResponse
