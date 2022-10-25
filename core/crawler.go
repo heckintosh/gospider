@@ -289,8 +289,13 @@ func (crawler *Crawler) Start(linkfinder bool) {
 	crawler.C.OnResponse(func(response *colly.Response) {
 		respStr := DecodeChars(string(response.Body))
 		u := response.Request.URL.String()
+		u_parsed, err := url.Parse(response.Request.URL.String())
+		if err != nil {
+			panic(err)
+		} else if u_parsed.RawQuery == "" {
+			crawler.Result = append(crawler.Result, u)
+		}
 		// only add if the link length is shorter than 100 and total sites crawled is smaller than 150.
-		crawler.Result = append(crawler.Result, u)
 		// Verify which link is working
 		if InScope(response.Request.URL, crawler.C.URLFilters) {
 			crawler.findAWSS3(respStr)
