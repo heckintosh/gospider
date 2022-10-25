@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	res, err := RunSpider("config/spider.yml", "https://heckintosh.github.io/")
+	res, err := RunSpider("config/spider.yml", "https://fptshop.com.vn")
 	if err != nil {
 		fmt.Println(err)
 	} else {

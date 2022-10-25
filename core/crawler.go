@@ -252,16 +252,16 @@ func (crawler *Crawler) Start(linkfinder bool) {
 	}
 
 	// Handle url
-	crawler.C.OnHTML("[href]", func(e *colly.HTMLElement) {
-		urlString := e.Request.AbsoluteURL(e.Attr("href"))
-		urlString = FixUrl(crawler.site, urlString)
-		if urlString == "" {
-			return
-		}
-		if !crawler.urlSet.Duplicate(urlString) {
-			_ = e.Request.Visit(urlString)
-		}
-	})
+	// crawler.C.OnHTML("[href]", func(e *colly.HTMLElement) {
+	// 	urlString := e.Request.AbsoluteURL(e.Attr("href"))
+	// 	urlString = FixUrl(crawler.site, urlString)
+	// 	if urlString == "" {
+	// 		return
+	// 	}
+	// 	if !crawler.urlSet.Duplicate(urlString) {
+	// 		_ = e.Request.Visit(urlString)
+	// 	}
+	// })
 
 	// Handle form
 	crawler.C.OnHTML("form[action]", func(e *colly.HTMLElement) {
@@ -289,13 +289,13 @@ func (crawler *Crawler) Start(linkfinder bool) {
 	crawler.C.OnResponse(func(response *colly.Response) {
 		respStr := DecodeChars(string(response.Body))
 		u := response.Request.URL.String()
+		// only add if the link length is shorter than 100 and total sites crawled is smaller than 150.
 		crawler.Result = append(crawler.Result, u)
 		// Verify which link is working
 		if InScope(response.Request.URL, crawler.C.URLFilters) {
 			crawler.findAWSS3(respStr)
 		}
 	})
-
 	err := crawler.C.Visit(crawler.site.String())
 	if err != nil {
 		fmt.Printf("Failed to start %s: %s", crawler.site.String(), err)
@@ -326,6 +326,7 @@ func (crawler *Crawler) setupLinkFinder() {
 
 		// Verify which link is working
 		u := response.Request.URL.String()
+		crawler.Result = append(crawler.Result, u)
 
 		if InScope(response.Request.URL, crawler.C.URLFilters) {
 

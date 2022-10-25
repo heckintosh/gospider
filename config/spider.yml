@@ -11,7 +11,7 @@ whitelist: ""
 whitelist-domain: ""
 filter-length: ""
 threads: 3
-concurrent: 5
+concurrent: 3
 depth: 3
 delay: 0
 random-delay: 0
