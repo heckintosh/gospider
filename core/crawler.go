@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,12 +45,13 @@ type Crawler struct {
 	urlSet  *stringset.StringFilter
 	formSet *stringset.StringFilter
 
-	site   *url.URL
-	domain string
-	Input  string
-	Quiet  bool
-	raw    bool
-	Result []string
+	site               *url.URL
+	domain             string
+	Input              string
+	Quiet              bool
+	raw                bool
+	Result             []string
+	filterLength_slice []int
 }
 
 type SpiderOutput struct {
@@ -157,6 +159,19 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg) *Crawler {
 	// Init Output
 	var output *Output
 
+	filterLength_slice := []int{}
+	filterLength := cfg.FilterLength
+
+	if filterLength != "" {
+
+		lengthArgs := strings.Split(filterLength, ",")
+		for i := 0; i < len(lengthArgs); i++ {
+			if i, err := strconv.Atoi(lengthArgs[i]); err == nil {
+				filterLength_slice = append(filterLength_slice, i)
+			}
+		}
+	}
+
 	// Set url whitelist regex
 	reg := ""
 	if subs {
@@ -179,7 +194,7 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg) *Crawler {
 	}
 
 	// GoSpider default disallowed regex
-	disallowedRegex := `(?i)\.(png|apng|bmp|gif|ico|cur|jpg|jpeg|jfif|pjp|pjpeg|svg|tif|tiff|webp|xbm|3gp|aac|flac|mpg|mpeg|mp3|mp4|m4a|m4v|m4p|oga|ogg|ogv|mov|wav|webm|eot|woff|woff2|ttf|otf|css)(?:\?|#|$)`
+	disallowedRegex := `(?i)\.(png|apng|bmp|gif|ico|cur|jpg|jpeg|jfif|pjp|pjpeg|svg|tif|tiff|webp|xbm|3gp|aac|flac|mpg|mpeg|mp3|mp4|m4a|m4v|m4p|oga|ogg|ogv|mov|wav|webm|eot|woff|woff2|ttf|html|otf|css)(?:\?|#|$)`
 	c.DisallowedURLFilters = append(c.DisallowedURLFilters, regexp.MustCompile(disallowedRegex))
 
 	// Set optional blacklist url regex
@@ -212,7 +227,6 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg) *Crawler {
 		linkFinderCollector.URLFilters = append(linkFinderCollector.URLFilters, regexp.MustCompile("http(s)?://"+whiteListDomain))
 	}
 	var result []string
-
 	return &Crawler{
 		C:                   c,
 		LinkFinderCollector: linkFinderCollector,
@@ -228,6 +242,7 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg) *Crawler {
 		formSet:             stringset.NewStringFilter(),
 		awsSet:              stringset.NewStringFilter(),
 		Result:              result,
+		filterLength_slice:  filterLength_slice,
 	}
 }
 
@@ -252,16 +267,16 @@ func (crawler *Crawler) Start(linkfinder bool) {
 	}
 
 	// Handle url
-	// crawler.C.OnHTML("[href]", func(e *colly.HTMLElement) {
-	// 	urlString := e.Request.AbsoluteURL(e.Attr("href"))
-	// 	urlString = FixUrl(crawler.site, urlString)
-	// 	if urlString == "" {
-	// 		return
-	// 	}
-	// 	if !crawler.urlSet.Duplicate(urlString) {
-	// 		_ = e.Request.Visit(urlString)
-	// 	}
-	// })
+	crawler.C.OnHTML("[href]", func(e *colly.HTMLElement) {
+		urlString := e.Request.AbsoluteURL(e.Attr("href"))
+		urlString = FixUrl(crawler.site, urlString)
+		if urlString == "" {
+			return
+		}
+		if !crawler.urlSet.Duplicate(urlString) {
+			_ = e.Request.Visit(urlString)
+		}
+	})
 
 	// Handle form
 	crawler.C.OnHTML("form[action]", func(e *colly.HTMLElement) {
@@ -289,14 +304,7 @@ func (crawler *Crawler) Start(linkfinder bool) {
 	crawler.C.OnResponse(func(response *colly.Response) {
 		respStr := DecodeChars(string(response.Body))
 		u := response.Request.URL.String()
-		u_parsed, err := url.Parse(response.Request.URL.String())
-		if err != nil {
-			panic(err)
-		} else if u_parsed.RawQuery == "" {
-			crawler.Result = append(crawler.Result, u)
-		}
-		// only add if the link length is shorter than 100 and total sites crawled is smaller than 150.
-		// Verify which link is working
+		crawler.Result = append(crawler.Result, u)
 		if InScope(response.Request.URL, crawler.C.URLFilters) {
 			crawler.findAWSS3(respStr)
 		}
@@ -330,64 +338,64 @@ func (crawler *Crawler) setupLinkFinder() {
 		respStr := string(response.Body)
 
 		// Verify which link is working
-		u := response.Request.URL.String()
-		crawler.Result = append(crawler.Result, u)
-
-		if InScope(response.Request.URL, crawler.C.URLFilters) {
-
-			crawler.findAWSS3(respStr)
-
-			paths, err := LinkFinder(respStr)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-
-			currentPathURL, err := url.Parse(u)
-			currentPathURLerr := false
-			if err != nil {
-				currentPathURLerr = true
-			}
-
-			for _, relPath := range paths {
-
-				rebuildURL := ""
-				if !currentPathURLerr {
-					rebuildURL = FixUrl(currentPathURL, relPath)
-				} else {
-					rebuildURL = FixUrl(crawler.site, relPath)
+		if len(crawler.filterLength_slice) == 0 || !contains(crawler.filterLength_slice, len(respStr)) {
+			u := response.Request.URL.String()
+			if InScope(response.Request.URL, crawler.C.URLFilters) {
+				crawler.Result = append(crawler.Result, u)
+				fmt.Println("Linkfinder was run.")
+				crawler.findAWSS3(respStr)
+				paths, err := LinkFinder(respStr)
+				if err != nil {
+					fmt.Println(err)
+					return
 				}
 
-				if rebuildURL == "" {
-					continue
+				currentPathURL, err := url.Parse(u)
+				currentPathURLerr := false
+				if err != nil {
+					currentPathURLerr = true
 				}
 
-				// Try to request JS path
-				// Try to generate URLs with main site
-				fileExt := GetExtType(rebuildURL)
-				if fileExt == ".js" || fileExt == ".xml" || fileExt == ".json" || fileExt == ".map" {
-					crawler.feedLinkfinder(rebuildURL, "linkfinder", "javascript")
-				} else if !crawler.urlSet.Duplicate(rebuildURL) {
-					_ = crawler.C.Visit(rebuildURL)
-				}
+				for _, relPath := range paths {
 
-				// Try to generate URLs with the site where Javascript file host in (must be in main or sub domain)
-
-				urlWithJSHostIn := FixUrl(crawler.site, relPath)
-				if urlWithJSHostIn != "" {
-					fileExt := GetExtType(urlWithJSHostIn)
-					if fileExt == ".js" || fileExt == ".xml" || fileExt == ".json" || fileExt == ".map" {
-						crawler.feedLinkfinder(urlWithJSHostIn, "linkfinder", "javascript")
+					rebuildURL := ""
+					if !currentPathURLerr {
+						rebuildURL = FixUrl(currentPathURL, relPath)
 					} else {
-						if crawler.urlSet.Duplicate(urlWithJSHostIn) {
-							continue
+						rebuildURL = FixUrl(crawler.site, relPath)
+					}
+
+					if rebuildURL == "" {
+						continue
+					}
+
+					// Try to request JS path
+					// Try to generate URLs with main site
+					fileExt := GetExtType(rebuildURL)
+					if fileExt == ".js" || fileExt == ".xml" || fileExt == ".json" || fileExt == ".map" {
+						crawler.feedLinkfinder(rebuildURL, "linkfinder", "javascript")
+					} else if !crawler.urlSet.Duplicate(rebuildURL) {
+						_ = crawler.C.Visit(rebuildURL)
+					}
+
+					// Try to generate URLs with the site where Javascript file host in (must be in main or sub domain)
+
+					urlWithJSHostIn := FixUrl(crawler.site, relPath)
+					if urlWithJSHostIn != "" {
+						fileExt := GetExtType(urlWithJSHostIn)
+						if fileExt == ".js" || fileExt == ".xml" || fileExt == ".json" || fileExt == ".map" {
+							crawler.feedLinkfinder(urlWithJSHostIn, "linkfinder", "javascript")
 						} else {
-							_ = crawler.C.Visit(urlWithJSHostIn) //not print care for lost link
+							if crawler.urlSet.Duplicate(urlWithJSHostIn) {
+								continue
+							} else {
+								_ = crawler.C.Visit(urlWithJSHostIn) //not print care for lost link
+							}
 						}
+
 					}
 
 				}
-
 			}
 		}
 	})

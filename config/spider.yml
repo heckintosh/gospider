@@ -1,6 +1,6 @@
 site: "https://www.fis.com.vn/"
 sites: ""
-proxy: ""
+proxy: "http://127.0.0.1:8080"
 output: ""
 user-agent: ""
 cookie: ""
@@ -10,8 +10,8 @@ blacklist: ""
 whitelist: ""
 whitelist-domain: ""
 filter-length: ""
-threads: 3
-concurrent: 3
+threads: 10
+concurrent: 5
 depth: 3
 delay: 0
 random-delay: 0
