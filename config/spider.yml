@@ -1,6 +1,6 @@
-site: "https://www.fis.com.vn/"
+site: ""
 sites: ""
-proxy: "http://127.0.0.1:8080"
+proxy: ""
 output: ""
 user-agent: ""
 cookie: ""
@@ -32,3 +32,5 @@ subs: false
 include-other-source: false
 sitemap: true
 json: false
+tracker-length: 150
+blacklist-after: 40

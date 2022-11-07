@@ -41,6 +41,8 @@ type SpiderCfg struct {
 	Version            bool     `yaml:"version"`
 	Length             bool     `yaml:"length"`
 	Raw                bool     `yaml:"raw"`
+	TrackerLength      int      `yaml:"tracker-length"`
+	BlacklistAfter     int      `yaml:"blacklist-after"`
 }
 
 func LoadSpiderCfg(yaml_file string) (*SpiderCfg, error) {

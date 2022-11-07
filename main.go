@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/heckintosh/gospider/config"
 	"github.com/heckintosh/gospider/core"
 )
@@ -18,7 +19,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Println(res)
+		spew.Dump(res)
 	}
 }
 
@@ -80,7 +81,6 @@ func RunSpider(filename string, hosturl string) ([]string, error) {
 					defer siteWg.Done()
 					crawler.Start(linkfinder)
 				}()
-
 				// Brute force Sitemap path
 				if sitemap {
 					siteWg.Add(1)

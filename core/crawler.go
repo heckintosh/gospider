@@ -52,6 +52,10 @@ type Crawler struct {
 	raw                bool
 	Result             []string
 	filterLength_slice []int
+	Blacklist          []string
+	BlacklistAfter     int // Blacklist after the path appears the following number of requests
+	TrackerLength      int
+	TrackerRequests    []string
 }
 
 type SpiderOutput struct {
@@ -243,6 +247,9 @@ func NewCrawler(site *url.URL, cfg *config.SpiderCfg) *Crawler {
 		awsSet:              stringset.NewStringFilter(),
 		Result:              result,
 		filterLength_slice:  filterLength_slice,
+		TrackerLength:       cfg.TrackerLength,
+		TrackerRequests:     []string{},
+		BlacklistAfter:      cfg.BlacklistAfter, // blacklist the path after encountering [BlacklistAfter] requests
 	}
 }
 
@@ -261,6 +268,7 @@ func (crawler *Crawler) feedLinkfinder(jsFileUrl string, OutputType string, sour
 }
 
 func (crawler *Crawler) Start(linkfinder bool) {
+	// A list to store links that give duplicate response
 	// Setup Link Finder
 	if linkfinder {
 		crawler.setupLinkFinder()
@@ -301,6 +309,25 @@ func (crawler *Crawler) Start(linkfinder bool) {
 			crawler.feedLinkfinder(jsFileUrl, "javascript", "body")
 		}
 	})
+	crawler.C.OnRequest(func(r *colly.Request) {
+		// fmt.Println(crawler.Blacklist)
+		for _, blacklist_entry := range crawler.Blacklist {
+			// Drop requests if it is in blacklist
+			if strings.Contains(r.URL.Path, blacklist_entry) {
+				r.Abort()
+				return
+			}
+		}
+		if len(crawler.TrackerRequests) < crawler.TrackerLength {
+			paths := strings.SplitAfter(r.URL.Host+r.URL.Path, "/")
+			if len(paths) > 1 {
+				crawler.TrackerRequests = append(crawler.TrackerRequests, paths[1]) // append URL when the size of tracker hasnt reached limits
+			}
+		} else {
+			crawler.Blacklist = append(crawler.Blacklist, checkThreshold(crawler.BlacklistAfter, dupCount(crawler.TrackerRequests))...)
+		}
+	})
+
 	crawler.C.OnResponse(func(response *colly.Response) {
 		respStr := DecodeChars(string(response.Body))
 		u := response.Request.URL.String()
@@ -342,7 +369,6 @@ func (crawler *Crawler) setupLinkFinder() {
 			u := response.Request.URL.String()
 			if InScope(response.Request.URL, crawler.C.URLFilters) {
 				crawler.Result = append(crawler.Result, u)
-				fmt.Println("Linkfinder was run.")
 				crawler.findAWSS3(respStr)
 				paths, err := LinkFinder(respStr)
 				if err != nil {
@@ -399,4 +425,33 @@ func (crawler *Crawler) setupLinkFinder() {
 			}
 		}
 	})
+}
+
+func dupCount(list []string) map[string]int {
+	duplicate_frequency := make(map[string]int)
+	for _, item := range list {
+		// check if the item/element exist in the duplicate_frequency map
+		_, exist := duplicate_frequency[item]
+		if exist {
+			duplicate_frequency[item] += 1 // increase counter by 1 if already in the map
+		} else {
+			duplicate_frequency[item] = 1 // else start counting from 1
+		}
+	}
+	return duplicate_frequency
+}
+
+func checkThreshold(cap int, appearanceMap map[string]int) []string {
+	//traverse through the map
+	blacklist := []string{}
+	for key, value := range appearanceMap {
+		//check if present value is greater than threshold
+		if value > cap {
+			//if greater then append to blacklist
+			blacklist = append(blacklist, key)
+		}
+	}
+
+	//if value not found return false
+	return blacklist
 }
