@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	result, err := RunSpider("config/spider.yml", "https://fptshop.com.vn")
+	result, err := RunSpider("config/spider.yml", "http://example.com")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -118,7 +118,6 @@ func RunSpider(filename string, hosturl string) ([]string, error) {
 						temp = append(temp, item)
 					}
 				}
-				fmt.Println(crawler.Blacklist)
 				result = temp
 			}
 		}()

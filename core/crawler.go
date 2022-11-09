@@ -311,7 +311,7 @@ func (crawler *Crawler) Start(linkfinder bool) {
 	})
 	crawler.C.OnRequest(func(r *colly.Request) {
 		for _, blacklist_entry := range crawler.Blacklist {
-			// Drop requests if it is in blacklist
+			// Drop the request if it is in blacklist
 			if strings.Contains(r.URL.Path, blacklist_entry) {
 				r.Abort()
 				return
