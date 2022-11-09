@@ -32,5 +32,5 @@ subs: false
 include-other-source: false
 sitemap: true
 json: false
-tracker-length: 150
-blacklist-after: 40
+tracker-length: 100
+blacklist-after: 15

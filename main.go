@@ -15,12 +15,11 @@ import (
 )
 
 func main() {
-	res, err := RunSpider("config/spider.yml", "https://fptshop.com.vn")
+	result, err := RunSpider("config/spider.yml", "https://fptshop.com.vn")
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		spew.Dump(res)
 	}
+	spew.Dump(result)
 }
 
 func RunSpider(filename string, hosturl string) ([]string, error) {
@@ -111,7 +110,16 @@ func RunSpider(filename string, hosturl string) ([]string, error) {
 				siteWg.Wait()
 				crawler.C.Wait()
 				crawler.LinkFinderCollector.Wait()
-				result = append(result, crawler.Result...)
+				result = crawler.Result
+				temp := []string{}
+				for _, item := range result {
+					// Add to final result if the path is not in blacklist
+					if !isPathInBlacklist(crawler.Blacklist, item) {
+						temp = append(temp, item)
+					}
+				}
+				fmt.Println(crawler.Blacklist)
+				result = temp
 			}
 		}()
 	}
@@ -121,5 +129,41 @@ func RunSpider(filename string, hosturl string) ([]string, error) {
 	}
 	close(inputChan)
 	wg.Wait()
-	return result, err
+	return getUniqueSlice(result), err
+}
+
+func RemoveIndex(s []string, index int) []string {
+	ret := make([]string, 0)
+	ret = append(ret, s[:index]...)
+	return append(ret, s[index+1:]...)
+}
+
+func isPathInBlacklist(blacklist []string, str string) bool {
+	u, _ := url.Parse(str)
+	// Not getting root elem
+	if u.Path != "/" && len(u.Path) != 0 {
+		for _, blacklist_entry := range blacklist {
+			// If there is a blacklist part in u.path
+			if strings.Contains(u.Path, blacklist_entry) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func getUniqueSlice(stringSlice []string) []string {
+	keys := make(map[string]bool)
+	list := []string{}
+
+	// If the key(values of the slice) is not equal
+	// to the already present value in new slice (list)
+	// then we append it. else we jump on another element.
+	for _, entry := range stringSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
 }

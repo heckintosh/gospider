@@ -310,7 +310,6 @@ func (crawler *Crawler) Start(linkfinder bool) {
 		}
 	})
 	crawler.C.OnRequest(func(r *colly.Request) {
-		// fmt.Println(crawler.Blacklist)
 		for _, blacklist_entry := range crawler.Blacklist {
 			// Drop requests if it is in blacklist
 			if strings.Contains(r.URL.Path, blacklist_entry) {
@@ -319,19 +318,25 @@ func (crawler *Crawler) Start(linkfinder bool) {
 			}
 		}
 		if len(crawler.TrackerRequests) < crawler.TrackerLength {
-			paths := strings.SplitAfter(r.URL.Host+r.URL.Path, "/")
+			re := regexp.MustCompile(`/[^/]*`)
+			paths := re.FindAllString(r.URL.Path, -1) // Get first path only
 			if len(paths) > 1 {
-				crawler.TrackerRequests = append(crawler.TrackerRequests, paths[1]) // append URL when the size of tracker hasnt reached limits
+				crawler.TrackerRequests = append(crawler.TrackerRequests, paths[0]) // append URL when the size of tracker hasnt reached limits
 			}
-		} else {
+		} else { // When trackerrequests is full, add some of the first path to blacklist if met the condition.
 			crawler.Blacklist = append(crawler.Blacklist, checkThreshold(crawler.BlacklistAfter, dupCount(crawler.TrackerRequests))...)
+			crawler.Blacklist = getUniqueSlice(crawler.Blacklist)
+			crawler.TrackerRequests = []string{}
 		}
 	})
 
 	crawler.C.OnResponse(func(response *colly.Response) {
 		respStr := DecodeChars(string(response.Body))
-		u := response.Request.URL.String()
-		crawler.Result = append(crawler.Result, u)
+		u := response.Request.URL
+		u.RawQuery = ""
+		u.Fragment = ""
+		// Remove query
+		crawler.Result = append(crawler.Result, u.String())
 		if InScope(response.Request.URL, crawler.C.URLFilters) {
 			crawler.findAWSS3(respStr)
 		}
@@ -366,9 +371,10 @@ func (crawler *Crawler) setupLinkFinder() {
 
 		// Verify which link is working
 		if len(crawler.filterLength_slice) == 0 || !contains(crawler.filterLength_slice, len(respStr)) {
-			u := response.Request.URL.String()
+			u := response.Request.URL
 			if InScope(response.Request.URL, crawler.C.URLFilters) {
-				crawler.Result = append(crawler.Result, u)
+				u.RawQuery = ""
+				crawler.Result = append(crawler.Result, u.String())
 				crawler.findAWSS3(respStr)
 				paths, err := LinkFinder(respStr)
 				if err != nil {
@@ -376,7 +382,7 @@ func (crawler *Crawler) setupLinkFinder() {
 					return
 				}
 
-				currentPathURL, err := url.Parse(u)
+				currentPathURL, err := url.Parse(u.String())
 				currentPathURLerr := false
 				if err != nil {
 					currentPathURLerr = true
@@ -454,4 +460,20 @@ func checkThreshold(cap int, appearanceMap map[string]int) []string {
 
 	//if value not found return false
 	return blacklist
+}
+
+func getUniqueSlice(stringSlice []string) []string {
+	keys := make(map[string]bool)
+	list := []string{}
+
+	// If the key(values of the slice) is not equal
+	// to the already present value in new slice (list)
+	// then we append it. else we jump on another element.
+	for _, entry := range stringSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
 }
